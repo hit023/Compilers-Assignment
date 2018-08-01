@@ -1,138 +1,201 @@
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <bits/stdc++.h>
+using namespace std;
 
-//Declare types and variables used ->
-enum DFAstate { START, INNUM, INID, INASSIGN, DONE, INRELOP};
-
-enum tag { MULOP, ADDOP, DIVOP, MINUS, RELOP, IFTOK, ELSETOK, ID, NUM, WHILETOK, ORTOK, ANDTOK, SEMICOL, BRACEOPEN, BRACECLOSE, PAROPEN, PARCLOSE, SQOPEN, SQCLOSE, DOTOK, BREAKTOK, TRUE, FALSE, TYPE, VOIDTOK, RETURNTOK};
+enum DFAstate { START, INNUM, INID, INASSIGN, DONE, INRELOP, INIF};
 
 typedef enum DFAstate DFAstate;
-typedef enum tag tag;
 
-char* keywords[] = {"if", "else", "while", "do", "break", "true", "false", "int", "float", "void", "return"};
+string terminals[] = {"IFTOK", "ELSETOK", "WHILETOK", "DOTOK",
+ "BREAKTOK", "TYPE", "VOIDTOK", "RETURNTOK", "*", "+",
+ "/", "-",";", "{", "}", "(", ")","&", "!"
+ "[", "]", "ORTOK", "ANDTOK", "NUM", "ID", ",", "<", ">", "GE", "LE", "DEQ", "NEQ",
+ "NULLTOK", "=", "|", "$end"};
 
-tag keyword_tag[] = {IFTOK, ELSETOK, WHILETOK, DOTOK, BREAKTOK, TRUE, FALSE, TYPE, TYPE, VOIDTOK, RETURNTOK};
+string keywords[] = {"if","else", "while", "do","break", "void", "return", "int", "float","NULL"};
 
-DFAstate state = START;
+int nterminals = 36;
+int nkeywords = 10;
+
+DFAstate stat = START;
 
 typedef struct token{
-    tag token_tag;
-    char* token_lexeme;
+    int token_id;
+    string token_lexeme;
     int token_line_number;
 } token;
 
-token* tokens[1001];
+map<int,string> inv;
+map<string,int> mp;
+
+vector<token> tokens;
 int current_token_idx = 0;
+int is_tok = -1;
 
 //Function prototypes ->
-void getTokens(char* program);
+void getTokens(string program);
 int isDigit(char);
 int isChar(char);
 int isSpace(char);
 int isNewline(char);
 int isSymbol(char);
-int isKeyword(char*);
-tag getKeywordTag(int);
-void appendToken(token*);
-token* newToken(tag,char*,int);
+int isKeyword(string);
+int getTokenID(string);
+void appendToken(token);
+token newToken(int,string,int);
 void printTokens();
+int isTerminal(string s);
 
-void getTokens(char* program)
+string removeComments(const string& s)
 {
-    int prog_len = strlen(program),i = 0, line_no = 1;
-    char* number;
-    char* id;
+    string ret = "";
+    int len = s.length();
+    for(int i=0;i<len;i++)
+    {
+        if(s[i] == '/' && i+1 < len && s[i+1]=='/')
+        {
+            //cout<<"entered\n";
+            while(s[i]!='\n' && i < len)
+            {
+                //cout<<"omitting: "<<s[i]<<'\n';
+                ++i;
+            }
+            if(i < len) ret += s[i];
+        }
+        else ret += s[i];
+    }
+    string g = "";
+    len = ret.length();
+    for(int i=0;i<len;i++)
+    {
+        if(ret[i] == '/' && i+1 < len && ret[i+1] == '*')
+        {
+            while(i < len && !(i+1 < len && ret[i] == '*' && ret[i+1] == '/')) ++i;
+            if(i >= len)
+            {
+                return "Error in multiline comments";
+            }
+            ++i;
+        }
+        else g += ret[i];
+    }
+    return g;
+}
+
+void getTokens(string program)
+{
+    program = removeComments(program);
+    if(program == "Error")
+    {
+        cout<<"Error in scanning comments.";
+        return;
+    }
+    int prog_len = program.length(),i = 0, line_no = 1;
+    string number;
+    string id;
     int idx = 0,flag = 0;
-    while(state != DONE)
+    while(stat != DONE)
     {
         char c = program[i];
-        switch(state)
+        switch(stat)
         {
             case START:
                 if(isChar(c))
                 {
-                    state = INID;
+                    stat = INID;
                 }
                 else if(isDigit(c))
                 {
-                    state = INNUM;
+                    stat = INNUM;
                 }
                 else if(isSpace(c))
                 {
                     ++i;
-    				if(i == prog_len) state = DONE;
-    				else state = START;
+    				if(i == prog_len) stat = DONE;
+    				else stat = START;
                 }
                 else if(isSymbol(c))
                 {
                     switch(c)
                     {
                         case ';':
-                            appendToken(newToken(SEMICOL,";",line_no));
+                            appendToken(newToken(mp[";"],";",line_no));
                             ++i;
                             break;
+
                         case '<':
-                            state = INRELOP;
+                            stat = INRELOP;
                             break;
 
                         case '>':
-                            state = INRELOP;
+                            stat = INRELOP;
                             break;
 
                         case '=':
-                            state = INRELOP;
+                            stat = INRELOP;
+                            break;
+
+                        case '!':
+                            stat = INRELOP;
                             break;
 
                         case '-':
-                            appendToken(newToken(MINUS,"-",line_no));
+                            appendToken(newToken(mp["-"],"-",line_no));
                             ++i;
                             break;
 
                         case '+':
-                            appendToken(newToken(ADDOP,"-",line_no));
+                            appendToken(newToken(mp["+"],"-",line_no));
                             ++i;
                             break;
 
                         case '*':
-                            appendToken(newToken(MULOP,"-",line_no));
+                            appendToken(newToken(mp["*"],"-",line_no));
                             ++i;
                             break;
 
                         case '/':
-                            appendToken(newToken(DIVOP,"-",line_no));
+                            appendToken(newToken(mp["/"],"-",line_no));
                             ++i;
                             break;
 
                         case '{':
-                            appendToken(newToken(BRACEOPEN,"{",line_no));
+                            appendToken(newToken(mp["{"],"{",line_no));
                             ++i;
                             break;
 
                         case '}':
-                            appendToken(newToken(BRACECLOSE,"{",line_no));
+                            appendToken(newToken(mp["}"],"}",line_no));
                             ++i;
                             break;
 
                         case '[':
-                            appendToken(newToken(SQOPEN,"[",line_no));
+                            appendToken(newToken(mp["["],"[",line_no));
                             ++i;
                             break;
 
                         case ']':
-                            appendToken(newToken(SQCLOSE,"]",line_no));
+                            appendToken(newToken(mp["]"],"]",line_no));
                             ++i;
                             break;
 
                         case '(':
-                            appendToken(newToken(PAROPEN,"(",line_no));
+                            appendToken(newToken(mp["("],"(",line_no));
                             ++i;
                             break;
 
                         case ')':
-                            appendToken(newToken(PARCLOSE,")",line_no));
+                            appendToken(newToken(mp[")"],")",line_no));
                             ++i;
                             break;
+
+                        case ',':
+                            appendToken(newToken(mp[","], ",", line_no));
+                            ++i;
+                            break;
+
+                        default:
+                            cout << "Error in line: "<<line_no<<'\n';
+                            ++i;
                     }
                 }
                 else if(isNewline(c))
@@ -140,103 +203,109 @@ void getTokens(char* program)
                     ++line_no;
                     ++i;
                 }
-                else state = DONE;
+                else stat = DONE;
                 break;
 
             case INNUM:
                 //memset(number,0,sizeof(char) * 11);
-                number = (char*)malloc(sizeof(char)*11);
-                idx = 0, flag= 0;
+                //number = (string)malloc(sizeof(char)*11);
+                number.clear();
+                flag= 0;
                 while(i<prog_len && isDigit(c))
                 {
-                    number[idx++] = c;
+                    //number[idx++] = c;
+                    number += c;
                     ++i;
                     c = program[i];
                     if(c == '.' && flag == 0)
                     {
-                        number[idx++] = c;
+                        //number[idx++] = c;
+                        number += c;
                         ++i;
                         c = program[i];
                         flag = 1;
                     }
                 }
-                number[idx] = '\0';
-                appendToken(newToken(NUM,number,line_no));
-                if(i == prog_len) state = DONE;
-                else state = START;
+                //number[idx] = '\0';
+                //cout<<"bye\n";
+                //cout<<number<<'\n';
+                appendToken(newToken(mp["NUM"],number,line_no));
+                if(i == prog_len) stat = DONE;
+                else stat = START;
                 break;
 
             case INID:
-                //memset(id,0,100 * sizeof(char));
-                id = (char*)malloc(sizeof(char)*100);
-                idx= 0;
+                id.clear();
                 while( i<prog_len && (isChar(c) || isDigit(c)) )
                 {
-                    id[idx++] = c;
+                    id += c;
                     ++i;
                     c = program[i];
                 }
-                id[idx] = '\0';
-                int is_tok = isKeyword(id);
+                is_tok = isKeyword(id);
                 if(is_tok != -1)
                 {
-                    appendToken(newToken(getKeywordTag(is_tok),id,line_no));
+                    appendToken(newToken(getTokenID(id),id,line_no));
                 }
                 else
                 {
-                    appendToken(newToken(ID,id,line_no));
+                    appendToken(newToken(mp["ID"],id,line_no));
                 }
-                if(i == prog_len) state = DONE;
-                else state = START;
+                if(i == prog_len) stat = DONE;
+                else stat = START;
                 break;
 
             case INRELOP:
                 switch(c)
                 {
+                    case '!':
+                        if(i+1 < prog_len && program[i+1] == '=')
+                        {
+
+                            appendToken(newToken(mp["NEQ"],"!=",line_no));
+                            i += 2;
+                        }
+                        break;
+
                     case '<':
                         if(i+1 < prog_len && program[i+1] == '=')
                         {
-                            appendToken(newToken(RELOP,"<=",line_no));
+                            appendToken(newToken(mp["LE"],"<=",line_no));
                              i += 2;
-                        }
-                        else if(program[i+1] == '>')
-                        {
-                            appendToken(newToken(RELOP,"<>",line_no));
-                            i += 2;
                         }
                         else
                         {
-                            appendToken(newToken(RELOP,"<",line_no));
+                            appendToken(newToken(mp["<"],"<",line_no));
                             ++i;
                         }
-                        state = START;
+                        stat = START;
                         break;
 
                     case '=':
                         if(i+1 < prog_len && program[i+1] == '=')
                         {
-                            appendToken(newToken(RELOP,"==",line_no));
+                            appendToken(newToken(mp["DEQ"],"==",line_no));
                             i += 2;
                         }
                         else
                         {
-                            appendToken(newToken(RELOP,"=",line_no));
+                            appendToken(newToken(mp["="],"=",line_no));
                             ++i;
                         }
-                        state = START;
+                        stat = START;
                         break;
 
                     case '>':
                         if(i+1 < prog_len && program[i+1] == '=')
                         {
-                            appendToken(newToken(RELOP,">=",line_no));
+                            appendToken(newToken(mp["GE"],">=",line_no));
                             i += 2;
                         }
                         else
                         {
-                            appendToken(newToken(RELOP,">",line_no));
+                            appendToken(newToken(mp[">"],">",line_no));
                         }
-                        state = START;
+                        stat = START;
                         break;
                 }
                 break;
@@ -245,23 +314,24 @@ void getTokens(char* program)
                 break;
         }
     }
+    appendToken(newToken(mp["$end"],"$end",line_no));
 }
 
-void appendToken(token* tok)
+void appendToken(token tok)
 {
-    tokens[current_token_idx++] = tok;
+    //tokens[current_token_idx++] = tok;
+    tokens.push_back(tok);
+    current_token_idx++;
 }
 
-token* newToken(tag tg,char* lexeme,int line)
+token newToken(int id,string lexeme,int line)
 {
-    token* tok = NULL;
-    tok = (token*)malloc(sizeof(token));
-    tok->token_tag = tg;
-    tok->token_lexeme = lexeme;
-    tok->token_line_number = line;
+    token tok{};
+    tok.token_id = id;
+    tok.token_lexeme = lexeme;
+    tok.token_line_number = line;
     return tok;
 }
-
 int isDigit(char c)
 {
     return c >= 48 && c <= 57;
@@ -284,27 +354,44 @@ int isNewline(char c)
 
 int isSymbol(char c)
 {
-    return (c=='<' || c=='>' || c=='=' || c==';' || c=='+' || c=='-' || c=='*' || c=='/' || c=='(' || c==')' || c=='[' || c==']' || c=='{' || c=='}');
+    return (c=='<' || c=='>' || c=='=' || c==';' || c=='+' || c=='-' || c=='*' || c=='/' || c=='(' || c==')' || c=='[' || c==']' || c=='{' || c=='}' || c==',' || c == '?');
 }
 
-tag getKeywordTag(int idx)
+int isKeyword(string str)
 {
-    return keyword_tag[idx];
-}
-
-int isKeyword(char* str)
-{
-    for(int i=0;i<10;i++)
+    for(int i=0;i<nkeywords;i++)
     {
-        if(strcmp(str,keywords[i])==0) return i;
+        if(str == keywords[i]) return i;
     }
     return -1;
+}
+
+int getTokenID(string s)
+{
+    if(s == "if") return mp["IFTOK"];
+    if(s == "else") return mp["ELSETOK"];
+    if(s == "while") return mp["WHILETOK"];
+    if(s == "do") return mp["DOTOK"];
+    if(s == "break") return mp["BREAKTOK"];
+    if(s == "return") return mp["RETURNTOK"];
+    if(s == "int" || s == "float") return mp["TYPE"];
+    if(s == "void") return mp["VOIDTOK"];
 }
 
 void printTokens()
 {
     for(int i=0;i<current_token_idx;i++)
     {
-        printf("Token: %d, string: %s, line: %d\n",tokens[i]->token_tag, tokens[i]->token_lexeme, tokens[i]->token_line_number);
+        //cout<<"Token: "<<inv[tokens[i].token_id]<<", string: "<<tokens[i].token_lexeme<<", line: "<<tokens[i].token_line_number<<"\n";
+        cout<<"Line: "<<tokens[i].token_line_number<<"  "<<tokens[i].token_lexeme<<"           "<<inv[tokens[i].token_id]<<"\n";
     }
+}
+
+int isTerminal(string s)
+{
+    for(int i=0;i<nterminals;i++)
+    {
+        if(s == terminals[i]) return 1;
+    }
+    return 0;
 }

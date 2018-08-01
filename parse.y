@@ -6,12 +6,12 @@
 %}
 %start Program
 %token IFTOK ELSETOK ID NUM WHILETOK DOTOK BREAKTOK TYPE VOIDTOK RETURNTOK NULLTOK
+%token DEQ NEQ LE GE
 %nonassoc ELSETOK
 %left '+' '-'
 %left '*' '/'
 %%
-Program : Block
-| Functions
+Program : Functions
 ;
 Functions : Functions Function
 |
@@ -30,11 +30,12 @@ Stmts : Stmts Stmt
 |
 ;
 Stmt : Loc '=' Bool ';'
-| IFTOK '(' Bool ')' Stmt
 | IFTOK '(' Bool ')' Stmt ELSETOK Stmt
 | WHILETOK '(' Bool ')' Stmt
 | DOTOK Stmt WHILETOK '(' Bool ')' ';'
 | BREAKTOK ';'
+| RETURNTOK ';'
+| RETURNTOK NUM ';'
 | Function_call
 | Block
 ;
@@ -58,15 +59,16 @@ Bool : Bool '|' '|' Join
 | Join
 ;
 Join : Join '&' '&' Equality
-| Equality '!' '=' Rel
+| Equality
+;
+Equality : Equality DEQ Rel
+| Equality NEQ Rel
 | Rel
 ;
-Equality : Equality '=' '=' Rel
-| Equality '!' '=' Rel
-| Rel
-;
-Rel : Expr '<' Expr
-| Expr '<' '=' Expr
+Rel : Expr LE Expr
+| Expr '<' Expr
+| Expr '>' Expr
+| Expr GE Expr
 | Expr
 ;
 Expr : Expr '+' Term
@@ -96,8 +98,8 @@ int main (void)
 
 int yyerror(const char *msg)
 {
-	extern int yylineno;
+	/*extern int yylineno;
 	printf("Parsing Failed\nLine Number: %d %s\n",yylineno,msg);
-	success = 0;
+	success = 0;*/
 	return 0;
 }

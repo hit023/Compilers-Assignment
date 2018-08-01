@@ -15,11 +15,12 @@
 "null"          {return NULLTOK;}
 "int"           {return TYPE;}
 "float"         {return TYPE;}
+"=="			{return DEQ;}
+"!="			{return NEQ;}
+"<="			{return LE;}
+">="			{return GE;}
 [ \t]           {return 0;}
 [0-9]+(".")?([0-9])*         {return NUM;}
 [a-zA-z_][a-zA-z_0-9]* {return ID;}
+.               {return yytext[0];}
 %%
-int yywrap(void)
-{
-    return 1;
-}
